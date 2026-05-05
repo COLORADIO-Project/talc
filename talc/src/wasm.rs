@@ -1,5 +1,3 @@
-#![doc = include_str!("../README_WASM.md")]
-
 use core::ptr::NonNull;
 
 use crate::{base::binning::Binning, cell::TalcSyncCell, ptr_utils, source::Claim};
