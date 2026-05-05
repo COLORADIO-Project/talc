@@ -1,12 +1,12 @@
 [package]
 name = "talc"
-version = "5.0.3"
+version = "0.1.0"
 rust-version = "1.64.0"
 edition = "2021"
 readme = "README.md"
-authors = ["Shaun Beautement"]
+authors = ["Shaun Beautement", "Max Daubmann"]
 description = "A fast and flexible allocator for no_std and WebAssembly"
-repository = "https://github.com/SFBdragon/talc"
+repository = "https://github.com/COLORADIO-Project/talc"
 keywords = ["allocator", "no_std", "memory", "wasm"]
 categories = ["memory-management", "no-std", "embedded", "wasm"]
 license = "MIT"
@@ -16,18 +16,10 @@ counters = []
 nightly = []
 disable-grow-in-place = []
 disable-realloc-in-place = []
+1-byte-pages = []
 # internal, requires std, turns on thorough error checking
 # of allocator invariants with large performance cost
 error-scanning-std = ["allocator-api2/std"]
-
-# os = [
-#     "dep:libc",
-#     "dep:windows-sys",
-# ]
-# [target.'cfg(unix)'.dependencies]
-# libc = { version = "0.2", default-features = false, optional = true }
-# [target.'cfg(windows)'.dependencies]
-# windows-sys = { version = "0.59", features = ["Win32_System_Memory", "Win32_System_Threading"], optional = true }
 
 [dependencies]
 allocator-api2 = { version = "0.4", default-features = false, features = ["alloc"] }
