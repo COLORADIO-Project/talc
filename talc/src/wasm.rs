@@ -10,6 +10,8 @@ use crate::{base::binning::Binning, cell::TalcSyncCell, ptr_utils, source::Claim
 /// - `wasm32` has instructions for 64-bit numbers, which requires
 ///     less instructions than using two `usize`s for the availability bitfield.
 pub struct WasmBinning;
+
+#[cfg(not(feature = "1-byte-pages"))]
 impl Binning for WasmBinning {
     #[cfg(not(target_arch = "wasm64"))]
     type AvailabilityBitField = u64;
@@ -31,6 +33,15 @@ impl Binning for WasmBinning {
                 size,
             )
         }
+    }
+}
+
+#[cfg(feature = "1-byte-pages")]
+impl Binning for WasmBinning {
+    type AvailabilityBitField = u32;
+
+    fn size_to_bin(size: usize) -> u32 {
+        crate::base::binning::linear_extent_then_linearly_divided_exponential_binning::<4, 1>(size)
     }
 }
 
@@ -212,8 +223,13 @@ unsafe impl crate::source::Source for WasmGrowAndExtend {
     }
 }
 
-/// WASM page size is 64KiB
+/// Wasm page size is usually 64 KiB
+#[cfg(not(feature = "1-byte-pages"))]
 const PAGE_SIZE: usize = 1024 * 64;
+
+/// Wasm page size may be set to 1 B using the custom-page-sizes proposal
+#[cfg(feature = "1-byte-pages")]
+const PAGE_SIZE: usize = 1;
 
 #[inline]
 fn wasm_grow_request_size<B: Binning>(
