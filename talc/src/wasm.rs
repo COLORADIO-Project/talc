@@ -2,6 +2,9 @@
 
 use core::ptr::NonNull;
 
+#[cfg(all(test, any(target_arch = "wasm32", target_arch = "wasm64")))]
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use crate::{base::binning::Binning, cell::TalcSyncCell, ptr_utils, source::Claim};
 
 /// A binning configuration optimized for WebAssembly.
@@ -113,11 +116,22 @@ pub const fn new_wasm_dynamic_allocator() -> WasmDynamicTalc {
 #[derive(Debug)]
 pub struct WasmGrowAndClaim;
 
+#[cfg(all(test, any(target_arch = "wasm32", target_arch = "wasm64")))]
+static TEST_WASM_ACQUIRE_CALLS: AtomicUsize = AtomicUsize::new(0);
+
 unsafe impl crate::source::Source for WasmGrowAndClaim {
     fn acquire<B: Binning>(
         talc: &mut crate::base::Talc<Self, B>,
         layout: core::alloc::Layout,
     ) -> Result<(), ()> {
+        #[cfg(all(test, any(target_arch = "wasm32", target_arch = "wasm64")))]
+        {
+            // Count calls to this function and prevent infinite retry loops in test runs.
+            if TEST_WASM_ACQUIRE_CALLS.fetch_add(1, Ordering::SeqCst) >= 256 {
+                return Err(());
+            }
+        }
+
         // Growth strategy: just try to grow enough to avoid OOM again on this allocation
         // Performance testing shows that it works well even in random actions.
         let delta_pages = (layout.size() + crate::base::CHUNK_UNIT + (PAGE_SIZE - 1)) / PAGE_SIZE;
@@ -209,4 +223,29 @@ use core::arch::wasm64::memory_grow;
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 fn memory_grow<const M: usize>(_pages: usize) -> usize {
     panic!("not running on wasm32 or wasm64")
+}
+
+#[cfg(all(test, any(target_arch = "wasm32", target_arch = "wasm64")))]
+mod tests {
+    use super::{PAGE_SIZE, TEST_WASM_ACQUIRE_CALLS, WasmBinning, WasmGrowAndClaim};
+    use crate::cell::TalcCell;
+    use allocator_api2::alloc::Allocator;
+    use core::alloc::Layout;
+    use core::sync::atomic::Ordering;
+
+    #[test]
+    fn test_wasm_grow_allocates_sufficient_heap() {
+        TEST_WASM_ACQUIRE_CALLS.store(0, Ordering::SeqCst);
+
+        let talc: TalcCell<WasmGrowAndClaim, WasmBinning> = TalcCell::new(WasmGrowAndClaim);
+        let boundary = PAGE_SIZE.saturating_sub(crate::base::CHUNK_UNIT);
+        let layout = Layout::from_size_align(boundary, 8).unwrap();
+        let result = talc.allocate(layout);
+
+        assert!(
+            result.is_ok(),
+            "Allocation of {} bytes failed. Growth calculation may be undersized.",
+            boundary
+        );
+    }
 }
